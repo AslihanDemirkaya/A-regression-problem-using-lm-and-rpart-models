@@ -1,0 +1,417 @@
+---  
+title: "Regression Analysis using an OLSR linear (lm) model and a CART (rpart) model"
+author: "ASLIHAN DEMIRKAYA"
+output:
+  html_document:
+    toc: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+##<span style="color:blue">*Introduction*</span>
+
+In this work, our aim is to do regression analysis using an OLSR linear (lm) model and a CART (rpart) model on the dataset `kc_house_data`. The dataset is obtained from Kaggle.  
+
+The dataset consists of data of houses sold between May 2014 to May 2015. Our `lm` and `rpart` models will predict the sales of houses in King County with an accuracy of at least 70-78%. 
+
+
+
+
+## <span style="color:blue">*Exploring the Data Set*</span>
+First let’s read the data `kc_house_data` and explore the data.
+```{r}
+kc_house_data<-read.csv('kc_house_data.csv')
+dim(kc_house_data)
+names(kc_house_data)
+```
+
+
+In this data set, we have 21,613 observations and 21 variables. In this problem, our response varibale is `price`. The explanatory variables are the rest of the variables. Now let’s classify the variables.
+```{r}
+library(dplyr)
+library(ggplot2)
+glimpse(kc_house_data)
+```
+
+By looking at the data, we can tell that we have one factor variable: `date` and the other variables are numerical. 
+
+### <span style="color:green">* Dealing with the variable: `date`*</span>
+
+We need to work on the variable `date` since it is not in a format we want it to be. We install the package `lubridate` for that purpose. We would like to categorize the date data into four classes: `winter`, `spring`, `summer` and `fall`. The following R-code does what we want.
+
+```{r}
+library("lubridate")
+month_sold<-month(lubridate::parse_date_time(kc_house_data$date,"ymdHMS"))
+kc_house_data$seasons<- 
+  cut((month_sold)%%12, breaks = c(-0.1,2.1, 5.1, 8.1, 11.1),
+      labels = c("winter", "spring", "summer", "fall"),
+      include.lowest = TRUE)
+```
+
+It makes sense to drop the variable `date` since we added a new variable `seasons`. We will also drop the variable `id` since we believe that it has no effect on `price`. 
+
+```{r}
+kc_house_data<-kc_house_data%>%
+  select(-c(id,date))
+glimpse(kc_house_data)
+```
+
+
+### <span style="color:blue">* Visualizing the data*</span>
+
+In this section, we are going to pick some random variables and visually observe if they have some effects on the variable `price`.
+
+```{r}
+ggplot(data = kc_house_data, aes(x = factor(seasons), y = price)) +
+geom_boxplot()
+```
+
+
+The boxplot `price` vs `seasons` shows us `seasons` does not play a significant role in predicting `price` since the statistics of each category seem close.
+
+Now let's see if `grade` has some effect on `price`.
+
+```{r}
+ggplot(data = kc_house_data, aes(x = factor(grade), y = log(price))) +
+geom_boxplot()
+```
+The boxplot shows us the variable `grade` has a significant effect on the `price` variable since the statistics of each class  highly varies from each other.
+
+
+
+```{r}
+ggplot(data = kc_house_data, aes(x = factor(view), y = price)) +
+geom_boxplot()
+```
+
+Now, let's study the relation between `sqft_living` and `price`.
+
+```{r}
+ggplot(data=kc_house_data,aes(x = sqft_living, y = price )) + 
+geom_point()
+```
+
+
+We see a fan shape, so the relation between `sqft_living` and `price` is nonlinear. We will try taking the `log` of the response variable to get better results.
+
+
+
+### <span style="color:blue">*Preparing the Data Set*</span>
+Since we are going to compare models and select the best model at the end of the section, we will split our data into training and testing (80/20). Then we will split the training data into training and validation (again, 80/20).
+
+Below is the R-code that helps us to split our data set into two sets: Training and Testing data.
+
+
+
+
+```{r}
+set.seed(123)
+rows <- sample(nrow(kc_house_data)) #randomly order the sampled data
+kc_house_data <- kc_house_data[rows, ]
+split <- round(nrow(kc_house_data) * .80)
+train <- kc_house_data[1:split, ]
+test_set <- kc_house_data[(split + 1):nrow(kc_house_data), ]
+
+```
+Now, we split our Training Data into two sets: Training and Validation data.
+
+```{r}
+set.seed(123)
+rows <- sample(nrow(train)) #randomly order the sampled data
+train <- train[rows, ]
+split <- round(nrow(train) * .80)
+train_set <- train[1:split, ]
+validation_set <- train[(split + 1):nrow(train), ]
+```
+
+In short, we have three sets now: train_set which has 64% of the data, validation_set which has 16% of the data and test_set which has the 20% of the data.
+```{r}
+print(c(dim(train_set),dim(validation_set),dim(test_set)))
+```
+##<span style="color:blue">*Fitting models using `lm` and `rpart`*</span>
+
+In this section, we will present `lm` models and then `rpart` models. We will pick the winner in each category based on their RMSE values. Finally, we will announce the winner at the end, in the conclusion part.
+
+###<span style="color:red">*OLSR Linear (lm) Model:*</span>
+
+In this section, we will present a few  `lm` models and calculate their corresponding `RMSE` values. We will pick the most optimal one at the end of this section.
+
+####<span style="color:red">* Simple Model:*</span>
+Our first linear model will be the one that anyone can start without exploring any kind of relationsip between the response variable and the features. We will run our model in the train set: train_set. Here is the R-command for the model:
+
+```{r}
+mod_1<-lm(price~., data=train_set)
+summary(mod_1)
+```
+
+
+####<span style="color:red">* Discussion of the summary statistics of the model:*</span>
+
+Before we discuss about the p-values, notice that we have `NA` values in the row of `sqft_basement`. The reason is the collinearity. `sqft_basement` linearly depends on the other two variables: `sqft_living` and `sqft_above`, i.e., we can write `sqft_basement=sqft_living-sqft_above`. 
+
+Looking at the `lm` model, we see that `floors`  has the highest p-value. `sqft_lot` has the second highest p-value. We are going to drop both of these variables. However, note that the right thing to do is to take each variable (starting with the hightest p-value) out respectively. 
+
+Now let's drop the three variables: `floors`, `sqft_lot ` and `sqft_basement` and run the `lm` model again. We call this new `lm model` as mod_2.
+
+####<span style="color:red">* Model with excluding insignificant variables:*</span>
+
+```{r}
+mod_2<-lm(price~.-floors-sqft_lot-sqft_basement, data=train_set)
+summary(mod_2)
+```
+
+
+Looking at the summary, we can tell that all the variables play a significant role assuming the significance level as (=0.05). Note that two classes of `seasons` have relatively high p-values but one class (`seasonsspring`) has a small p-value so we will keep the variable `season` in our linear model.
+
+
+####<span style="color:red">*Model with the log of the response variable:*</span>
+
+As we mentioned earlier, `sqft_living` vs `price` plot has a fan shape. It is worth trying to take the log of the response variable: `price`. We will work on this as our next model.
+
+```{r}
+mod_3<-lm(log(price)~.-floors-sqft_lot-sqft_basement, data=train_set)
+summary(mod_3)
+```
+
+When we look at the statistics, it looks like we get better results as compared to the previous `lm` models. However, we have to be careful because our response variable is in the log form. In the next section, we will compare all these three models.
+
+###<span style="color:red">*Comparison of the `lm` models:*</span>
+
+Now let's compare our three models. We will pick the model as our optimal one with the lowest RMSE and the lowest relative error. We will apply our three models on the  validation_set and evaluate the RMSE values and also the relative errors. The following R-chunk helps us to achieve this aim. Note that we have to take the exponential of the prediction when we use the last model: `mod_3` since the response variable was in the log form.
+
+```{r}
+pred1 <- predict(object = mod_1,newdata = validation_set)
+pred2 <- predict(object = mod_2,newdata = validation_set)
+pred3 <- exp(predict(object = mod_3,newdata = validation_set)) #since the prediction is in log form.
+
+actual<-validation_set$price
+rmse_mod1<-sqrt(mean((pred1 - actual)^2)) 
+rmse_mod2<-sqrt(mean((pred2 - actual)^2))
+rmse_mod3<-sqrt(mean((pred3 - actual)^2))
+
+re_mod1<-sqrt(sum((pred1 - actual)^2))/sqrt(sum(actual^2)) #relative error
+re_mod2<-sqrt(sum((pred2 - actual)^2))/sqrt(sum(actual^2))
+re_mod3<-sqrt(sum((pred3 - actual)^2))/sqrt(sum(actual^2))
+
+rmse_lm_all<-c(rmse_mod1,rmse_mod2,rmse_mod3,re_mod1, re_mod2, re_mod3)
+print(rmse_lm_all)
+```
+
+
+###<span style="color:green">* CART (rpart) Model:*</span>
+
+In this section, we will fit our data to rpart model. Our parameters will be taken as the default values. Following this model, we will work on the hyperparameters. First we will play with the complexity parameter and present a model with the optimal complex parameter cp. Given that fixed  cp, we will do grid search. We will present RMSE values for every optimal model we find in this section. At the end of the section, we will present our winner.
+
+####<span style="color:green">*Simple `rpart` model with default settings:*</span>
+
+We start with the basic rpart model where the default values for the hyperparameters are used. The model is fit to our train_set. Then we calculate the RMSE for the model on the test set. For visualization, we present the plot of the regression tree.
+
+```{r}
+library(rpart)
+set.seed(1)
+rpart_model <- rpart(formula = price ~.,
+data = train_set,
+method = "anova") #since it is regression model, we pick "anova".
+rpart_model
+```
+
+This summary tells us which variables and the cutoff values are taken in the construction of the regression tree but it helps more when we see those variables and the values visually. Below is the regression tree for this model:
+```{r}
+library(rpart.plot)
+rpart.plot(rpart_model)
+```
+
+
+We see that `root`, `grade`, `lat`, `sqft_living`, `grade`, `yr_built`, `long`, `waterfront`, `sqft_above` are taken as variables in this regression tree. For instance a house with `grade`=8, `lat`=62, `sqft_living`=3000, `zip_code`=98028 has a prediction of price as 768K. As observed no_children, gender and region do not play a role in predicting costs.
+
+Now, let’s evaluate the RMSE for our first rpart model: rpart_model on the validation_set.
+```{r}
+pred <- predict(object = rpart_model,newdata = validation_set)
+actual<-validation_set$price
+rmse<-sqrt(mean((pred - actual)^2))
+print(rmse)
+```
+####<span style="color:green">* Playing with the hyperparameters:*</span>
+
+In this section, for a better model, we will work on the hyperparameters. First, we will start with finding the optimal complex parameter cp. Then we will do the grid search.
+
+####<span style="color:green">* Finding an optimal `cp`:*</span>
+
+First, let’s plot X-val Relative Error vs cp plot.
+
+```{r}
+plotcp(rpart_model)
+```
+This `cp` plot shows the X-val Relative Error for cp∈(0.01,∞). Since X-val Relative Error<0.2, any value close to 0.01 is acceptable. Note that our default cp is 0.01. Below is a table for a few cp values within the range (0.01, ∞) and their X-val Relative Error.
+
+```{r}
+print(rpart_model$cptable)
+```
+
+```{r}
+opt_index <- which.min(rpart_model$cptable[, "xerror"])
+cp_opt <- rpart_model$cptable[opt_index, "CP"]
+print(cp_opt)
+```
+
+```{r}
+model_opt <- prune(tree = rpart_model, cp = cp_opt)
+```
+Since the optimal cp is the default value, model_opt is same as our first rpart model: rpart_model.
+
+However, we are curious if we get smaller RMSE values with lower cp values. We believe it is worth trying. So we write a for loop for cp values less than 0.01.
+
+```{r}
+set.seed(1)
+ small_cp_models <- list()
+for (i in 1:9) {
+    small_cp_models[[i]] <- rpart(formula = price ~ ., 
+                               data =train_set , 
+                               method = "anova",
+                               cp=0.001*i)
+}
+```
+
+The R-code above gives us 9 models with cp values $\in$ {0.001,0.002,...,0.009}. We calculate their RMSE values on the validation set as follows:
+```{r}
+rmse_values <- c() 
+for (i in 1:length(small_cp_models)) {
+model <-small_cp_models[[i]]
+pred <- predict(object = model,newdata = validation_set)
+actual<-validation_set$price
+rmse_values[i] <- sqrt(mean((pred - actual)^2)) #rmse values for cp=c(0.001,0.002,...,0.009)
+}
+print(rmse_values)
+```
+The RMSE value takes its minimum value when cp=0.001. Note that, we have to check if the X-val Relative Error remains small, too. Below, we present the cp plot for small cp values as the verification.
+
+```{r}
+rpart_cp_0001 <- small_cp_models[[1]] # cp=0.001
+plotcp(rpart_cp_0001)
+```
+```{r}
+print(rpart_cp_0001$cptable)
+```
+
+Since we picked cp=0.001, as seen in the above plot, we expect to see the size of the trees as 20 in the tree plot. As compared to our first tree plot, both tree plots look more complicated since we increased the level of complexity.
+
+```{r}
+rpart.plot(rpart_cp_0001)
+```
+
+####<span style="color:green">* Doing a grid search:*</span>
+
+Now, let’s set up the grid by establishing a list of possible values for minsplit and maxdepth.
+
+```{r}
+minsplit <- seq(2, 10, 1)
+maxdepth <- seq(4, 10, 1)
+hyper_grid <- expand.grid(minsplit = minsplit,maxdepth = maxdepth)
+head(hyper_grid)
+```
+
+In the above R-code, minsplit takes values from 2 to 10 and similarly, maxdepth takes values from 4 to 10. So in total, we have 9×7=63 pairs. Below, we write `rpart` models for these 63 pairs. Thus in total we present 63 models. As usual, we fit all these models on the train_set. Note that, we will take cp as 0.001 since it was the optimal cp value we found earlier.
+
+```{r}
+set.seed(1)
+# Number of potential models in the grid
+num_models <- nrow(hyper_grid)
+
+# Create an empty list to store models
+rpart_grid_models <- list()
+
+# Write a loop over the rows of hyper_grid to train the grid of models
+for (i in 1:num_models) {
+
+    # Get minsplit, maxdepth values at row i
+    minsplit <- hyper_grid$minsplit[i]
+    maxdepth <- hyper_grid$maxdepth[i]
+
+    # Train a model and store in the list
+    rpart_grid_models[[i]] <- rpart(formula = price ~ ., 
+                               data =train_set , 
+                               method = "anova",
+                               minsplit = minsplit,
+                               maxdepth = maxdepth,
+                               cp=0.001
+                               )
+}
+
+```
+
+Now, we constructed 63 rpart models but we have to pick the optimal one. The one with the smallest RMSE on the validation_set will be our optimal one.
+
+```{r}
+rmse_values <- c() 
+for (i in 1:length(rpart_grid_models)) {
+model <- rpart_grid_models[[i]]
+pred <- predict(object = model,newdata = validation_set)
+actual<-validation_set$price
+rmse_values[i] <- sqrt(mean((pred - actual)^2))
+}
+rmse_values
+```
+
+```{r}
+best_grid_model <- rpart_grid_models[[which.min(rmse_values)]]
+best_grid_model$control
+```
+Several rpart models above have the smallest RMSE value. However, we will pick the one with the smallest minsplit and maxdepth to keep the model simple. The simplest model with the smallest RMSE occurs when cp=0.001, minsplit=9 and maxdepth=10. and it is 166203.8. This is the winner rpart model in this section.
+
+####<span style="color:green">* Comparison of the `rpart` models:*</span>
+
+Although we calculated the RMSE values for the rpart models above, we will present them one more time to summarize and pick the one with the smallest RMSE. Below is the R-code that compares the models on the validation set and calculates the RMSE values.
+
+```{r}
+pred1 <- predict(object = rpart_model,newdata = validation_set)
+pred2 <- predict(object = rpart_cp_0001,newdata = validation_set)
+pred3 <- predict(object = best_grid_model,newdata = validation_set)
+
+
+actual<-validation_set$price
+rmse_1<-sqrt(mean((pred1 - actual)^2))
+rmse_2<-sqrt(mean((pred2 - actual)^2))
+rmse_3<-sqrt(mean((pred3 - actual)^2))
+
+
+rmse_rpart_all<-c(rmse_1,rmse_2,rmse_3)
+print(rmse_rpart_all)
+
+```
+
+##<span style="color:blue">*Conclusion*</span>
+
+The winner of lm models has RMSE= 193099.9 and the winner of rpart models has RMSE=166203.8. Thus the winner overall is the winner of  rpart models: best_grid_model.
+
+Finally, we will apply this winner rpart model on the full dataset healthcare. Note that we are taking exactly the same hyperparameters as  best_grid_model.
+
+```{r}
+best_grid_model_full<- rpart(formula = price ~ ., 
+                               data =kc_house_data, 
+                               method = "anova",
+                               minsplit = 9,
+                               maxdepth = 10,
+                               cp=0.001
+                               )
+
+```
+Now we apply our model best_grid_model_full to test_set.
+
+```{r}
+
+
+pred <- predict(object = best_grid_model_full,newdata = test_set)
+actual<-test_set$price
+rmse<-sqrt(mean((pred - actual)^2))
+re<-sqrt(sum((pred - actual)^2))/sqrt(sum(actual^2)) #relative error
+
+print(c(rmse,re))
+
+```
+The final RMSE value is 144201.1 with the relative error 22.58%.
+
