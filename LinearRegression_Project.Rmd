@@ -2,8 +2,8 @@
 title: "Regression Analysis using an OLSR linear (lm) model and a CART (rpart) model"
 author: "ASLIHAN DEMIRKAYA"
 output:
-  html_document:
-    toc: yes
+  md_document:
+    variant: markdown_github
 ---
 
 
