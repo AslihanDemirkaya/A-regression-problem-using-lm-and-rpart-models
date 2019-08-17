@@ -2,7 +2,8 @@
 title: "Regression Analysis using an OLSR linear (lm) model and a CART (rpart) model"
 author: "ASLIHAN DEMIRKAYA"
 output:
-  md_document:
+ md_document:
+    toc: yes
     variant: markdown_github
 ---
 
@@ -64,15 +65,15 @@ glimpse(kc_house_data)
 
 ### <span style="color:blue">* Visualizing the data*</span>
 
-In this section, we are going to pick some random variables and visually observe if they have some effects on the variable `price`.
+In this section, we are going to pick some random variables and visually observe if they have some effects on the variable `price`. Note that we will take the "log" of `price` to make the boxplots look less skewed. 
 
 ```{r}
-ggplot(data = kc_house_data, aes(x = factor(seasons), y = price)) +
+ggplot(data = kc_house_data, aes(x = factor(seasons), y = log(price))) +
 geom_boxplot()
 ```
 
 
-The boxplot `price` vs `seasons` shows us `seasons` does not play a significant role in predicting `price` since the statistics of each category seem close.
+The boxplot `log(price)` vs `seasons` shows us `seasons` does not play a significant role in predicting `price` since the statistics of each category seem close.
 
 Now let's see if `grade` has some effect on `price`.
 
@@ -80,20 +81,24 @@ Now let's see if `grade` has some effect on `price`.
 ggplot(data = kc_house_data, aes(x = factor(grade), y = log(price))) +
 geom_boxplot()
 ```
+
 The boxplot shows us the variable `grade` has a significant effect on the `price` variable since the statistics of each class  highly varies from each other.
 
 
-
+Now let's see if `view` has some effect on `price`.
 ```{r}
-ggplot(data = kc_house_data, aes(x = factor(view), y = price)) +
+ggplot(data = kc_house_data, aes(x = factor(view), y = log(price))) +
 geom_boxplot()
 ```
+
+
+The boxplot shows us the variable `grade` has a some effect on the `price` variable since the statistics of each class  slightly varies from each other.
 
 Now, let's study the relation between `sqft_living` and `price`.
 
 ```{r}
-ggplot(data=kc_house_data,aes(x = sqft_living, y = price )) + 
-geom_point()
+ggplot(data=kc_house_data,aes(x = sqft_living, y = price)) + 
+geom_point(alpha = 1/10)
 ```
 
 

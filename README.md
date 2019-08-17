@@ -1,3 +1,14 @@
+-   [<span style="color:blue">*Introduction*</span>](#introduction)
+-   [<span style="color:blue">*Exploring the Data Set*</span>](#exploring-the-data-set)
+    -   [<span style="color:green">\* Dealing with the variable: `date`\*</span>](#dealing-with-the-variable-date)
+    -   [<span style="color:blue">\* Visualizing the data\*</span>](#visualizing-the-data)
+    -   [<span style="color:blue">*Preparing the Data Set*</span>](#preparing-the-data-set)
+-   [<span style="color:blue">*Fitting models using `lm` and `rpart`*</span>](#fitting-models-using-lm-and-rpart)
+    -   [<span style="color:red">*OLSR Linear (lm) Model:*</span>](#olsr-linear-lm-model)
+    -   [<span style="color:red">*Comparison of the `lm` models:*</span>](#comparison-of-the-lm-models)
+    -   [<span style="color:green">\* CART (rpart) Model:\*</span>](#cart-rpart-model)
+-   [<span style="color:blue">*Conclusion*</span>](#conclusion)
+
 <span style="color:blue">*Introduction*</span>
 ----------------------------------------------
 
@@ -33,8 +44,6 @@ In this data set, we have 21,613 observations and 21 variables. In this problem,
 ``` r
 library(dplyr)
 ```
-
-    ## Warning: package 'dplyr' was built under R version 3.5.1
 
     ## 
     ## Attaching package: 'dplyr'
@@ -106,6 +115,21 @@ It makes sense to drop the variable `date` since we added a new variable `season
 ``` r
 kc_house_data<-kc_house_data%>%
   select(-c(id,date))
+```
+
+    ## Warning: `lang()` is deprecated as of rlang 0.2.0.
+    ## Please use `call2()` instead.
+    ## This warning is displayed once per session.
+
+    ## Warning: `new_overscope()` is deprecated as of rlang 0.2.0.
+    ## Please use `new_data_mask()` instead.
+    ## This warning is displayed once per session.
+
+    ## Warning: `overscope_eval_next()` is deprecated as of rlang 0.2.0.
+    ## Please use `eval_tidy()` with a data mask instead.
+    ## This warning is displayed once per session.
+
+``` r
 glimpse(kc_house_data)
 ```
 
@@ -134,16 +158,16 @@ glimpse(kc_house_data)
 
 ### <span style="color:blue">\* Visualizing the data\*</span>
 
-In this section, we are going to pick some random variables and visually observe if they have some effects on the variable `price`.
+In this section, we are going to pick some random variables and visually observe if they have some effects on the variable `price`. Note that we will take the "log" of `price` to make the boxplots look less skewed.
 
 ``` r
-ggplot(data = kc_house_data, aes(x = factor(seasons), y = price)) +
+ggplot(data = kc_house_data, aes(x = factor(seasons), y = log(price))) +
 geom_boxplot()
 ```
 
 ![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-5-1.png)
 
-The boxplot `price` vs `seasons` shows us `seasons` does not play a significant role in predicting `price` since the statistics of each category seem close.
+The boxplot `log(price)` vs `seasons` shows us `seasons` does not play a significant role in predicting `price` since the statistics of each category seem close.
 
 Now let's see if `grade` has some effect on `price`.
 
@@ -152,20 +176,26 @@ ggplot(data = kc_house_data, aes(x = factor(grade), y = log(price))) +
 geom_boxplot()
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-6-1.png) The boxplot shows us the variable `grade` has a significant effect on the `price` variable since the statistics of each class highly varies from each other.
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-6-1.png)
+
+The boxplot shows us the variable `grade` has a significant effect on the `price` variable since the statistics of each class highly varies from each other.
+
+Now let's see if `view` has some effect on `price`.
 
 ``` r
-ggplot(data = kc_house_data, aes(x = factor(view), y = price)) +
+ggplot(data = kc_house_data, aes(x = factor(view), y = log(price))) +
 geom_boxplot()
 ```
 
 ![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-7-1.png)
 
+The boxplot shows us the variable `grade` has a some effect on the `price` variable since the statistics of each class slightly varies from each other.
+
 Now, let's study the relation between `sqft_living` and `price`.
 
 ``` r
-ggplot(data=kc_house_data,aes(x = sqft_living, y = price )) + 
-geom_point()
+ggplot(data=kc_house_data,aes(x = sqft_living, y = price)) + 
+geom_point(alpha = 1/10)
 ```
 
 ![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-8-1.png)
@@ -403,11 +433,6 @@ We start with the basic rpart model where the default values for the hyperparame
 
 ``` r
 library(rpart)
-```
-
-    ## Warning: package 'rpart' was built under R version 3.5.2
-
-``` r
 set.seed(1)
 rpart_model <- rpart(formula = price ~.,
 data = train_set,
@@ -450,11 +475,6 @@ This summary tells us which variables and the cutoff values are taken in the con
 
 ``` r
 library(rpart.plot)
-```
-
-    ## Warning: package 'rpart.plot' was built under R version 3.5.2
-
-``` r
 rpart.plot(rpart_model)
 ```
 
