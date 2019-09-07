@@ -1,3 +1,16 @@
+-   [<span style="color:blue">*Introduction*</span>](#introduction)
+-   [<span style="color:blue">*Exploring the Data Set*</span>](#exploring-the-data-set)
+    -   [<span style="color:green">\* Dealing with the variable: `date`\*</span>](#dealing-with-the-variable-date)
+    -   [<span style="color:green">\* Dealing with the variable: `long, lat and zipcode`\*</span>](#dealing-with-the-variable-long-lat-and-zipcode)
+    -   [<span style="color:green">\* Dropping the variables: `date, id, long, lat, zipcode`\*</span>](#dropping-the-variables-date-id-long-lat-zipcode)
+    -   [<span style="color:blue">\* Visualizing the data\*</span>](#visualizing-the-data)
+    -   [<span style="color:blue">*Preparing the Data Set*</span>](#preparing-the-data-set)
+-   [<span style="color:blue">*Fitting models using `lm` and `rpart`*</span>](#fitting-models-using-lm-and-rpart)
+    -   [<span style="color:red">*OLSR Linear (lm) Model:*</span>](#olsr-linear-lm-model)
+    -   [<span style="color:red">*Comparison of the `lm` models:*</span>](#comparison-of-the-lm-models)
+    -   [<span style="color:green">\* CART (rpart) Model:\*</span>](#cart-rpart-model)
+-   [<span style="color:blue">*Conclusion*</span>](#conclusion)
+
 <span style="color:blue">*Introduction*</span>
 ----------------------------------------------
 
@@ -33,8 +46,6 @@ In this data set, we have 21,613 observations and 21 variables. In this problem,
 ``` r
 library(dplyr)
 ```
-
-    ## Warning: package 'dplyr' was built under R version 3.5.1
 
     ## 
     ## Attaching package: 'dplyr'
@@ -101,16 +112,27 @@ kc_house_data$seasons<-
       include.lowest = TRUE)
 ```
 
-It makes sense to drop the variable `date` since we added a new variable `seasons`. We will also drop the variable `id` since we believe that it has no effect on `price`.
+### <span style="color:green">\* Dealing with the variable: `long, lat and zipcode`\*</span>
+
+We need to work on these variables since we believe that the association with the house prices are highly not linear. There are several ways to deal with these variables but to make it simple, in this work, we will add a new variable that will somehow represent these variables. We will take the mean of the houses that belong to the same zipcode and call this variable as `zipcode_avg`.
 
 ``` r
 kc_house_data<-kc_house_data%>%
-  select(-c(id,date))
+group_by(zipcode)%>%
+  mutate(zipcode_avg=mean(price), zipcode_med=median(price))
+```
+
+    ## Warning: The `printer` argument is deprecated as of rlang 0.3.0.
+    ## This warning is displayed once per session.
+
+``` r
 glimpse(kc_house_data)
 ```
 
     ## Observations: 21,613
-    ## Variables: 20
+    ## Variables: 24
+    ## $ id            <dbl> 7129300520, 6414100192, 5631500400, 2487200875, ...
+    ## $ date          <fct> 20141013T000000, 20141209T000000, 20150225T00000...
     ## $ price         <dbl> 221900, 538000, 180000, 604000, 510000, 1225000,...
     ## $ bedrooms      <int> 3, 3, 2, 4, 3, 4, 3, 3, 3, 3, 3, 2, 3, 3, 5, 4, ...
     ## $ bathrooms     <dbl> 1.00, 2.25, 1.00, 3.00, 2.00, 4.50, 2.25, 1.50, ...
@@ -131,6 +153,62 @@ glimpse(kc_house_data)
     ## $ sqft_living15 <int> 1340, 1690, 2720, 1360, 1800, 4760, 2238, 1650, ...
     ## $ sqft_lot15    <int> 5650, 7639, 8062, 5000, 7503, 101930, 6819, 9711...
     ## $ seasons       <fct> fall, winter, winter, winter, winter, spring, su...
+    ## $ zipcode_avg   <dbl> 310612.8, 469455.8, 462480.0, 551688.7, 685605.8...
+    ## $ zipcode_med   <dbl> 278277, 425000, 445000, 489950, 642000, 635000, ...
+
+``` r
+length(kc_house_data$zipcode_avg)
+```
+
+    ## [1] 21613
+
+### <span style="color:green">\* Dropping the variables: `date, id, long, lat, zipcode`\*</span>
+
+It makes sense to drop the variable `date` since we add a new variable `seasons`. Similarly we will drop `zipcode`, `lat` and `long`. We also drop the variable `id` since we believe that it has no effect on `price`.
+
+``` r
+kc_house_data<-kc_house_data%>%
+  ungroup(-zipcode)%>%
+select(-c(id, date,zipcode,lat,long))
+```
+
+    ## Warning: `lang()` is deprecated as of rlang 0.2.0.
+    ## Please use `call2()` instead.
+    ## This warning is displayed once per session.
+
+    ## Warning: `new_overscope()` is deprecated as of rlang 0.2.0.
+    ## Please use `new_data_mask()` instead.
+    ## This warning is displayed once per session.
+
+    ## Warning: `overscope_eval_next()` is deprecated as of rlang 0.2.0.
+    ## Please use `eval_tidy()` with a data mask instead.
+    ## This warning is displayed once per session.
+
+``` r
+glimpse(kc_house_data)
+```
+
+    ## Observations: 21,613
+    ## Variables: 19
+    ## $ price         <dbl> 221900, 538000, 180000, 604000, 510000, 1225000,...
+    ## $ bedrooms      <int> 3, 3, 2, 4, 3, 4, 3, 3, 3, 3, 3, 2, 3, 3, 5, 4, ...
+    ## $ bathrooms     <dbl> 1.00, 2.25, 1.00, 3.00, 2.00, 4.50, 2.25, 1.50, ...
+    ## $ sqft_living   <int> 1180, 2570, 770, 1960, 1680, 5420, 1715, 1060, 1...
+    ## $ sqft_lot      <int> 5650, 7242, 10000, 5000, 8080, 101930, 6819, 971...
+    ## $ floors        <dbl> 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 2.0...
+    ## $ waterfront    <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...
+    ## $ view          <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, ...
+    ## $ condition     <int> 3, 3, 3, 5, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 3, 3, ...
+    ## $ grade         <int> 7, 7, 6, 7, 8, 11, 7, 7, 7, 7, 8, 7, 7, 7, 7, 9,...
+    ## $ sqft_above    <int> 1180, 2170, 770, 1050, 1680, 3890, 1715, 1060, 1...
+    ## $ sqft_basement <int> 0, 400, 0, 910, 0, 1530, 0, 0, 730, 0, 1700, 300...
+    ## $ yr_built      <int> 1955, 1951, 1933, 1965, 1987, 2001, 1995, 1963, ...
+    ## $ yr_renovated  <int> 0, 1991, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...
+    ## $ sqft_living15 <int> 1340, 1690, 2720, 1360, 1800, 4760, 2238, 1650, ...
+    ## $ sqft_lot15    <int> 5650, 7639, 8062, 5000, 7503, 101930, 6819, 9711...
+    ## $ seasons       <fct> fall, winter, winter, winter, winter, spring, su...
+    ## $ zipcode_avg   <dbl> 310612.8, 469455.8, 462480.0, 551688.7, 685605.8...
+    ## $ zipcode_med   <dbl> 278277, 425000, 445000, 489950, 642000, 635000, ...
 
 ### <span style="color:blue">\* Visualizing the data\*</span>
 
@@ -141,9 +219,11 @@ ggplot(data = kc_house_data, aes(x = factor(seasons), y = price)) +
 geom_boxplot()
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-5-1.png)
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-7-1.png)
 
 The boxplot `price` vs `seasons` shows us `seasons` does not play a significant role in predicting `price` since the statistics of each category seem close.
+
+\`
 
 Now let's see if `grade` has some effect on `price`.
 
@@ -152,25 +232,66 @@ ggplot(data = kc_house_data, aes(x = factor(grade), y = log(price))) +
 geom_boxplot()
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-6-1.png) The boxplot shows us the variable `grade` has a significant effect on the `price` variable since the statistics of each class highly varies from each other.
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-8-1.png) The boxplot shows us the variable `grade` has a significant effect on the `price` variable since the statistics of each class highly varies from each other.
+
+Similarly, we can see if `view` has some effect on the price.
 
 ``` r
 ggplot(data = kc_house_data, aes(x = factor(view), y = price)) +
 geom_boxplot()
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-7-1.png)
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-9-1.png)
+
+We see that there is a difference between `view=0` and `view=4`. So we expect `view` to have an effect on the variable `price`.
 
 Now, let's study the relation between `sqft_living` and `price`.
 
 ``` r
 ggplot(data=kc_house_data,aes(x = sqft_living, y = price )) + 
-geom_point()
+geom_point()+
+geom_smooth(method=lm)
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-8-1.png)
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-10-1.png)
 
 We see a fan shape, so the relation between `sqft_living` and `price` is nonlinear. We will try taking the `log` of the response variable to get better results.
+
+``` r
+ggplot(data=kc_house_data,aes(x = sqft_living, y = log(price) )) + 
+geom_point()+
+geom_smooth()
+```
+
+    ## `geom_smooth()` using method = 'gam'
+
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-11-1.png)
+
+By looking at the plot, we can say that `log(price)` and `sqft_living` has some nonlinear relationship. The regression curve (blue) looks like a square root function. So we are going to add `sqrt(sqft_living)` in our `lm` model when we take the log of `price`.
+
+``` r
+ggplot(data=kc_house_data,aes(x = sqrt(sqft_living), y = log(price) )) + 
+geom_point()+
+geom_smooth()
+```
+
+    ## `geom_smooth()` using method = 'gam'
+
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-12-1.png)
+
+As seen in the plot, the relation between `sqrt(sqrt_living)` and `log(price)` looks like linear.
+
+We expect a relationship between the mean price of each zipcode and the proce of the houses, Below we see that relation.
+
+``` r
+ggplot(data=kc_house_data,aes(x = log(zipcode_avg), y = log(price))) + 
+geom_point()+
+geom_smooth()
+```
+
+    ## `geom_smooth()` using method = 'gam'
+
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-13-1.png)
 
 ### <span style="color:blue">*Preparing the Data Set*</span>
 
@@ -204,7 +325,7 @@ In short, we have three sets now: train\_set which has 64% of the data, validati
 print(c(dim(train_set),dim(validation_set),dim(test_set)))
 ```
 
-    ## [1] 13832    20  3458    20  4323    20
+    ## [1] 13832    19  3458    19  4323    19
 
 <span style="color:blue">*Fitting models using `lm` and `rpart`*</span>
 -----------------------------------------------------------------------
@@ -228,38 +349,44 @@ summary(mod_1)
     ## 
     ## Residuals:
     ##      Min       1Q   Median       3Q      Max 
-    ## -1150570   -99837    -8614    79157  4218517 
+    ## -1049975   -77888     -761    68983  4320242 
     ## 
     ## Coefficients: (1 not defined because of singularities)
     ##                 Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)    9.320e+06  3.786e+06   2.462 0.013838 *  
-    ## bedrooms      -3.893e+04  2.408e+03 -16.166  < 2e-16 ***
-    ## bathrooms      4.001e+04  4.181e+03   9.570  < 2e-16 ***
-    ## sqft_living    1.632e+02  5.712e+00  28.569  < 2e-16 ***
-    ## sqft_lot       1.009e-01  6.386e-02   1.580 0.114151    
-    ## floors         3.157e+02  4.653e+03   0.068 0.945903    
-    ## waterfront     5.959e+05  2.175e+04  27.395  < 2e-16 ***
-    ## view           5.583e+04  2.752e+03  20.288  < 2e-16 ***
-    ## condition      2.311e+04  3.031e+03   7.622 2.65e-14 ***
-    ## grade          9.297e+04  2.779e+03  33.458  < 2e-16 ***
-    ## sqft_above     3.769e+01  5.653e+00   6.667 2.72e-11 ***
+    ## (Intercept)    3.146e+06  1.469e+05  21.423  < 2e-16 ***
+    ## bedrooms      -3.493e+04  2.061e+03 -16.948  < 2e-16 ***
+    ## bathrooms      3.022e+04  3.585e+03   8.429  < 2e-16 ***
+    ## sqft_living    1.669e+02  4.858e+00  34.356  < 2e-16 ***
+    ## sqft_lot       1.491e-01  5.456e-02   2.733 0.006276 ** 
+    ## floors        -8.314e+03  3.923e+03  -2.119 0.034089 *  
+    ## waterfront     6.219e+05  1.865e+04  33.352  < 2e-16 ***
+    ## view           5.992e+04  2.349e+03  25.507  < 2e-16 ***
+    ## condition      9.380e+03  2.573e+03   3.646 0.000267 ***
+    ## grade          6.509e+04  2.395e+03  27.173  < 2e-16 ***
+    ## sqft_above     4.197e+01  4.736e+00   8.862  < 2e-16 ***
     ## sqft_basement         NA         NA      NA       NA    
-    ## yr_built      -2.576e+03  9.405e+01 -27.393  < 2e-16 ***
-    ## yr_renovated   1.680e+01  4.742e+00   3.544 0.000396 ***
-    ## zipcode       -6.348e+02  4.259e+01 -14.903  < 2e-16 ***
-    ## lat            6.114e+05  1.388e+04  44.054  < 2e-16 ***
-    ## long          -2.313e+05  1.701e+04 -13.598  < 2e-16 ***
-    ## sqft_living15  1.485e+01  4.445e+00   3.342 0.000834 ***
-    ## sqft_lot15    -3.553e-01  9.467e-02  -3.753 0.000176 ***
-    ## seasonsspring  2.589e+04  5.332e+03   4.856 1.21e-06 ***
-    ## seasonssummer -3.922e+03  5.364e+03  -0.731 0.464658    
-    ## seasonsfall   -4.102e+03  5.599e+03  -0.733 0.463792    
+    ## yr_built      -1.921e+03  7.557e+01 -25.424  < 2e-16 ***
+    ## yr_renovated   4.676e+00  4.050e+00   1.155 0.248299    
+    ## sqft_living15 -3.662e+01  3.764e+00  -9.730  < 2e-16 ***
+    ## sqft_lot15    -3.654e-01  8.089e-02  -4.518 6.30e-06 ***
+    ## seasonsspring  2.101e+04  4.572e+03   4.596 4.35e-06 ***
+    ## seasonssummer -7.425e+03  4.599e+03  -1.614 0.106471    
+    ## seasonsfall   -9.840e+03  4.801e+03  -2.050 0.040410 *  
+    ## zipcode_avg    8.211e-01  5.090e-02  16.130  < 2e-16 ***
+    ## zipcode_med   -1.928e-01  6.077e-02  -3.172 0.001519 ** 
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     ## 
-    ## Residual standard error: 207800 on 13811 degrees of freedom
-    ## Multiple R-squared:  0.6979, Adjusted R-squared:  0.6975 
-    ## F-statistic:  1595 on 20 and 13811 DF,  p-value: < 2.2e-16
+    ## Residual standard error: 178100 on 13812 degrees of freedom
+    ## Multiple R-squared:  0.778,  Adjusted R-squared:  0.7777 
+    ## F-statistic:  2548 on 19 and 13812 DF,  p-value: < 2.2e-16
+
+``` r
+par(mfrow=c(2,2))
+plot(mod_1)
+```
+
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-18-1.png)
 
 #### <span style="color:red">\* Discussion of the summary statistics of the model:\*</span>
 
@@ -267,98 +394,104 @@ Before we discuss about the p-values, notice that we have `NA` values in the row
 
 Looking at the `lm` model, we see that `floors` has the highest p-value. `sqft_lot` has the second highest p-value. We are going to drop both of these variables. However, note that the right thing to do is to take each variable (starting with the hightest p-value) out respectively.
 
-Now let's drop the three variables: `floors`, `sqft_lot` and `sqft_basement` and run the `lm` model again. We call this new `lm model` as mod\_2.
+For the next model, we will drop the variables: `floors`, `sqft_lot`, `sqft_basement` and `seasons`. Even though the p-values for the variables `long` and `lat` are very small, we will drop those variables, too. There is another way to handle `long` and `lat` but we will not discuss it here but in our later projects. We call this new `lm model` as mod\_2.
 
 #### <span style="color:red">\* Model with excluding insignificant variables:\*</span>
 
 ``` r
-mod_2<-lm(price~.-floors-sqft_lot-sqft_basement, data=train_set)
+mod_2<-lm(price~.-floors-sqft_lot-sqft_basement-seasons-yr_renovated, data=train_set)
 summary(mod_2)
 ```
 
     ## 
     ## Call:
-    ## lm(formula = price ~ . - floors - sqft_lot - sqft_basement, data = train_set)
+    ## lm(formula = price ~ . - floors - sqft_lot - sqft_basement - 
+    ##     seasons - yr_renovated, data = train_set)
     ## 
     ## Residuals:
     ##      Min       1Q   Median       3Q      Max 
-    ## -1152198  -100113    -8588    79236  4216388 
+    ## -1063951   -78060     -218    68603  4313713 
     ## 
     ## Coefficients:
     ##                 Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)    9.581e+06  3.725e+06   2.572 0.010120 *  
-    ## bedrooms      -3.905e+04  2.406e+03 -16.226  < 2e-16 ***
-    ## bathrooms      4.015e+04  4.031e+03   9.959  < 2e-16 ***
-    ## sqft_living    1.634e+02  5.415e+00  30.166  < 2e-16 ***
-    ## waterfront     5.956e+05  2.175e+04  27.381  < 2e-16 ***
-    ## view           5.592e+04  2.750e+03  20.333  < 2e-16 ***
-    ## condition      2.300e+04  3.027e+03   7.598 3.19e-14 ***
-    ## grade          9.311e+04  2.766e+03  33.666  < 2e-16 ***
-    ## sqft_above     3.799e+01  5.055e+00   7.515 6.06e-14 ***
-    ## yr_built      -2.583e+03  9.168e+01 -28.173  < 2e-16 ***
-    ## yr_renovated   1.667e+01  4.733e+00   3.521 0.000431 ***
-    ## zipcode       -6.345e+02  4.242e+01 -14.958  < 2e-16 ***
-    ## lat            6.107e+05  1.382e+04  44.204  < 2e-16 ***
-    ## long          -2.294e+05  1.690e+04 -13.573  < 2e-16 ***
-    ## sqft_living15  1.436e+01  4.406e+00   3.260 0.001116 ** 
-    ## sqft_lot15    -2.511e-01  6.764e-02  -3.713 0.000206 ***
-    ## seasonsspring  2.583e+04  5.332e+03   4.845 1.28e-06 ***
-    ## seasonssummer -4.133e+03  5.362e+03  -0.771 0.440840    
-    ## seasonsfall   -4.127e+03  5.599e+03  -0.737 0.461120    
+    ## (Intercept)    3.258e+06  1.384e+05  23.534  < 2e-16 ***
+    ## bedrooms      -3.489e+04  2.064e+03 -16.903  < 2e-16 ***
+    ## bathrooms      2.848e+04  3.430e+03   8.302  < 2e-16 ***
+    ## sqft_living    1.705e+02  4.643e+00  36.721  < 2e-16 ***
+    ## waterfront     6.220e+05  1.868e+04  33.303  < 2e-16 ***
+    ## view           5.989e+04  2.351e+03  25.477  < 2e-16 ***
+    ## condition      8.732e+03  2.534e+03   3.446 0.000570 ***
+    ## grade          6.491e+04  2.387e+03  27.196  < 2e-16 ***
+    ## sqft_above     3.747e+01  4.283e+00   8.749  < 2e-16 ***
+    ## yr_built      -1.979e+03  7.125e+01 -27.778  < 2e-16 ***
+    ## sqft_living15 -3.595e+01  3.712e+00  -9.685  < 2e-16 ***
+    ## sqft_lot15    -1.922e-01  5.691e-02  -3.377 0.000735 ***
+    ## zipcode_avg    8.181e-01  5.101e-02  16.038  < 2e-16 ***
+    ## zipcode_med   -1.918e-01  6.089e-02  -3.151 0.001632 ** 
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     ## 
-    ## Residual standard error: 207800 on 13813 degrees of freedom
-    ## Multiple R-squared:  0.6978, Adjusted R-squared:  0.6975 
-    ## F-statistic:  1772 on 18 and 13813 DF,  p-value: < 2.2e-16
+    ## Residual standard error: 178700 on 13818 degrees of freedom
+    ## Multiple R-squared:  0.7766, Adjusted R-squared:  0.7764 
+    ## F-statistic:  3696 on 13 and 13818 DF,  p-value: < 2.2e-16
 
-Looking at the summary, we can tell that all the variables play a significant role assuming the significance level as (=0.05). Note that two classes of `seasons` have relatively high p-values but one class (`seasonsspring`) has a small p-value so we will keep the variable `season` in our linear model.
+``` r
+par(mfrow=c(2,2))
+plot(mod_2)
+```
+
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-20-1.png)
+
+Looking at the summary, we can tell that all the variables play a significant role assuming the significance level as (=0.05).
 
 #### <span style="color:red">*Model with the log of the response variable:*</span>
 
 As we mentioned earlier, `sqft_living` vs `price` plot has a fan shape. It is worth trying to take the log of the response variable: `price`. We will work on this as our next model.
 
 ``` r
-mod_3<-lm(log(price)~.-floors-sqft_lot-sqft_basement, data=train_set)
+mod_3<-lm(log(price)~.-floors-sqft_lot-sqft_basement-seasons-yr_renovated-zipcode_avg-zipcode_med+log(zipcode_med)+log(zipcode_avg), data=train_set)
 summary(mod_3)
 ```
 
     ## 
     ## Call:
-    ## lm(formula = log(price) ~ . - floors - sqft_lot - sqft_basement, 
-    ##     data = train_set)
+    ## lm(formula = log(price) ~ . - floors - sqft_lot - sqft_basement - 
+    ##     seasons - yr_renovated - zipcode_avg - zipcode_med + log(zipcode_med) + 
+    ##     log(zipcode_avg), data = train_set)
     ## 
     ## Residuals:
     ##      Min       1Q   Median       3Q      Max 
-    ## -1.15977 -0.16227  0.00138  0.16032  1.18718 
+    ## -1.08674 -0.12034  0.00371  0.12360  1.03214 
     ## 
     ## Coefficients:
-    ##                 Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)   -1.170e+01  4.523e+00  -2.588  0.00967 ** 
-    ## bedrooms      -1.395e-02  2.922e-03  -4.773 1.84e-06 ***
-    ## bathrooms      8.626e-02  4.895e-03  17.620  < 2e-16 ***
-    ## sqft_living    1.237e-04  6.576e-06  18.804  < 2e-16 ***
-    ## waterfront     3.718e-01  2.641e-02  14.075  < 2e-16 ***
-    ## view           6.344e-02  3.340e-03  18.995  < 2e-16 ***
-    ## condition      5.579e-02  3.675e-03  15.181  < 2e-16 ***
-    ## grade          1.644e-01  3.358e-03  48.941  < 2e-16 ***
-    ## sqft_above     2.873e-05  6.139e-06   4.681 2.88e-06 ***
-    ## yr_built      -3.158e-03  1.113e-04 -28.368  < 2e-16 ***
-    ## yr_renovated   3.273e-05  5.748e-06   5.695 1.26e-08 ***
-    ## zipcode       -6.237e-04  5.151e-05 -12.108  < 2e-16 ***
-    ## lat            1.417e+00  1.678e-02  84.479  < 2e-16 ***
-    ## long          -1.853e-01  2.052e-02  -9.029  < 2e-16 ***
-    ## sqft_living15  8.635e-05  5.350e-06  16.140  < 2e-16 ***
-    ## sqft_lot15     1.804e-07  8.214e-08   2.197  0.02806 *  
-    ## seasonsspring  4.671e-02  6.474e-03   7.215 5.66e-13 ***
-    ## seasonssummer  2.222e-04  6.511e-03   0.034  0.97277    
-    ## seasonsfall   -3.910e-03  6.800e-03  -0.575  0.56527    
+    ##                    Estimate Std. Error t value Pr(>|t|)    
+    ## (Intercept)       7.443e+00  1.864e-01  39.922  < 2e-16 ***
+    ## bedrooms         -7.433e-03  2.399e-03  -3.098  0.00195 ** 
+    ## bathrooms         6.444e-02  3.988e-03  16.158  < 2e-16 ***
+    ## sqft_living       1.500e-04  5.394e-06  27.806  < 2e-16 ***
+    ## waterfront        3.883e-01  2.170e-02  17.896  < 2e-16 ***
+    ## view              6.860e-02  2.735e-03  25.079  < 2e-16 ***
+    ## condition         2.738e-02  2.943e-03   9.304  < 2e-16 ***
+    ## grade             1.166e-01  2.787e-03  41.858  < 2e-16 ***
+    ## sqft_above        2.361e-05  4.977e-06   4.745  2.1e-06 ***
+    ## yr_built         -2.545e-03  8.292e-05 -30.691  < 2e-16 ***
+    ## sqft_living15     5.552e-06  4.304e-06   1.290  0.19707    
+    ## sqft_lot15        1.534e-07  6.607e-08   2.321  0.02029 *  
+    ## log(zipcode_med)  3.819e-01  3.797e-02  10.056  < 2e-16 ***
+    ## log(zipcode_avg)  3.175e-01  3.581e-02   8.866  < 2e-16 ***
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     ## 
-    ## Residual standard error: 0.2524 on 13813 degrees of freedom
-    ## Multiple R-squared:  0.7714, Adjusted R-squared:  0.7711 
-    ## F-statistic:  2590 on 18 and 13813 DF,  p-value: < 2.2e-16
+    ## Residual standard error: 0.2076 on 13818 degrees of freedom
+    ## Multiple R-squared:  0.8453, Adjusted R-squared:  0.8452 
+    ## F-statistic:  5808 on 13 and 13818 DF,  p-value: < 2.2e-16
+
+``` r
+par(mfrow=c(2,2))
+plot(mod_3)
+```
+
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-22-1.png)
 
 When we look at the statistics, it looks like we get better results as compared to the previous `lm` models. However, we have to be careful because our response variable is in the log form. In the next section, we will compare all these three models.
 
@@ -378,20 +511,18 @@ pred2 <- predict(object = mod_2,newdata = validation_set)
 pred3 <- exp(predict(object = mod_3,newdata = validation_set)) #since the prediction is in log form.
 
 actual<-validation_set$price
-rmse_mod1<-sqrt(mean((pred1 - actual)^2)) 
-rmse_mod2<-sqrt(mean((pred2 - actual)^2))
-rmse_mod3<-sqrt(mean((pred3 - actual)^2))
 
-re_mod1<-sqrt(sum((pred1 - actual)^2))/sqrt(sum(actual^2)) #relative error
-re_mod2<-sqrt(sum((pred2 - actual)^2))/sqrt(sum(actual^2))
-re_mod3<-sqrt(sum((pred3 - actual)^2))/sqrt(sum(actual^2))
+re_mod1<-median(abs((pred1 - actual)/actual)) #relative error
+re_mod2<-median(abs((pred2 - actual)/actual)) 
+re_mod3<-median(abs((pred3 - actual)/actual)) 
 
-rmse_lm_all<-c(rmse_mod1,rmse_mod2,rmse_mod3,re_mod1, re_mod2, re_mod3)
-print(rmse_lm_all)
+re_lm_all<-c(re_mod1, re_mod2, re_mod3)
+print(re_lm_all)
 ```
 
-    ## [1] 1.931021e+05 1.930999e+05 1.980239e+05 2.995189e-01 2.995155e-01
-    ## [6] 3.071530e-01
+    ## [1] 0.1552964 0.1578398 0.1193639
+
+Looking at the R-squared values and the relative errors calculated above, we can say the best linear model out of three models is `mod_3` with the relative error 11.9%.
 
 ### <span style="color:green">\* CART (rpart) Model:\*</span>
 
@@ -403,11 +534,6 @@ We start with the basic rpart model where the default values for the hyperparame
 
 ``` r
 library(rpart)
-```
-
-    ## Warning: package 'rpart' was built under R version 3.5.2
-
-``` r
 set.seed(1)
 rpart_model <- rpart(formula = price ~.,
 data = train_set,
@@ -422,43 +548,34 @@ rpart_model
     ## 
     ##  1) root 13832 1.974421e+15  540698.2  
     ##    2) grade< 9.5 12772 7.395538e+14  479434.0  
-    ##      4) lat< 47.53445 5166 1.033496e+14  336014.8  
-    ##        8) sqft_living< 2275 3822 3.628570e+13  290593.5 *
-    ##        9) sqft_living>=2275 1344 3.675530e+13  465181.8 *
-    ##      5) lat>=47.53445 7606 4.577727e+14  576844.4  
-    ##       10) sqft_living< 2345.5 5483 1.455858e+14  495542.8  
-    ##         20) sqft_living< 1535 2512 3.827190e+13  421870.7 *
-    ##         21) sqft_living>=1535 2971 8.215215e+13  557833.0 *
-    ##       11) sqft_living>=2345.5 2123 1.823426e+14  786819.4  
-    ##         22) zipcode>=98004.5 2053 1.471397e+14  767816.8 *
-    ##         23) zipcode< 98004.5 70 1.271932e+13 1344138.0 *
+    ##      4) zipcode_avg< 539824.9 7255 1.546703e+14  360781.9  
+    ##        8) sqft_living< 2275 5432 6.088037e+13  317628.7 *
+    ##        9) sqft_living>=2275 1823 5.353355e+13  489365.4 *
+    ##      5) zipcode_avg>=539824.9 5517 3.484306e+14  635464.8  
+    ##       10) sqft_living< 2345.5 3819 1.003059e+14  543762.5 *
+    ##       11) sqft_living>=2345.5 1698 1.437788e+14  841713.9  
+    ##         22) zipcode_avg< 861255 1449 7.679216e+13  784451.1 *
+    ##         23) zipcode_avg>=861255 249 3.458621e+13 1174942.0 *
     ##    3) grade>=9.5 1060 6.093331e+14 1278873.0  
     ##      6) sqft_living< 5005 929 2.340396e+14 1131966.0  
     ##       12) view< 3.5 867 1.532965e+14 1068380.0  
-    ##         24) long>=-122.1915 553 2.917514e+13  920765.8 *
-    ##         25) long< -122.1915 314 9.084993e+13 1328350.0  
-    ##           50) lat< 47.53065 41 1.623687e+12  640829.3 *
-    ##           51) lat>=47.53065 273 6.693558e+13 1431605.0 *
+    ##         24) zipcode_avg< 861255 722 6.730145e+13  957969.1 *
+    ##         25) zipcode_avg>=861255 145 3.336759e+13 1618150.0 *
     ##       13) view>=3.5 62 2.821806e+13 2021145.0 *
     ##      7) sqft_living>=5005 131 2.130613e+14 2320682.0  
     ##       14) sqft_living< 7940 123 1.068015e+14 2114984.0  
-    ##         28) long>=-122.179 71 2.209943e+13 1617626.0 *
-    ##         29) long< -122.179 52 4.315909e+13 2794068.0 *
+    ##         28) zipcode_avg< 861255 89 5.365050e+13 1801511.0 *
+    ##         29) zipcode_avg>=861255 34 2.151245e+13 2935546.0 *
     ##       15) sqft_living>=7940 8 2.103882e+13 5483288.0 *
 
 This summary tells us which variables and the cutoff values are taken in the construction of the regression tree but it helps more when we see those variables and the values visually. Below is the regression tree for this model:
 
 ``` r
 library(rpart.plot)
-```
-
-    ## Warning: package 'rpart.plot' was built under R version 3.5.2
-
-``` r
 rpart.plot(rpart_model)
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-17-1.png)
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-25-1.png)
 
 We see that `root`, `grade`, `lat`, `sqft_living`, `grade`, `yr_built`, `long`, `waterfront`, `sqft_above` are taken as variables in this regression tree. For instance a house with `grade`=8, `lat`=62, `sqft_living`=3000, `zip_code`=98028 has a prediction of price as 768K. As observed no\_children, gender and region do not play a role in predicting costs.
 
@@ -471,7 +588,7 @@ rmse<-sqrt(mean((pred - actual)^2))
 print(rmse)
 ```
 
-    ## [1] 216827.8
+    ## [1] 211764.2
 
 #### <span style="color:green">\* Playing with the hyperparameters:\*</span>
 
@@ -485,7 +602,7 @@ First, let’s plot X-val Relative Error vs cp plot.
 plotcp(rpart_model)
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-19-1.png) This `cp` plot shows the X-val Relative Error for cp∈(0.01,∞). Since X-val Relative Error&lt;0.2, any value close to 0.01 is acceptable. Note that our default cp is 0.01. Below is a table for a few cp values within the range (0.01, ∞) and their X-val Relative Error.
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-27-1.png) This `cp` plot shows the X-val Relative Error for cp∈(0.01,∞). Since X-val Relative Error&lt;0.2, any value close to 0.01 is acceptable. Note that our default cp is 0.01. Below is a table for a few cp values within the range (0.01, ∞) and their X-val Relative Error.
 
 ``` r
 print(rpart_model$cptable)
@@ -493,18 +610,15 @@ print(rpart_model$cptable)
 
     ##            CP nsplit rel error    xerror       xstd
     ## 1  0.31681893      0 1.0000000 1.0001658 0.05667259
-    ## 2  0.09037157      1 0.6831811 0.6900816 0.04062542
-    ## 3  0.08216701      2 0.5928095 0.6094447 0.04007452
-    ## 4  0.06576325      3 0.5106425 0.5635206 0.03048560
-    ## 5  0.04316249      4 0.4448792 0.4988173 0.02998279
-    ## 6  0.02660276      5 0.4017167 0.4557058 0.02381580
-    ## 7  0.02104060      6 0.3751140 0.4318101 0.02276377
-    ## 8  0.01685123      7 0.3540734 0.4099209 0.02069885
-    ## 9  0.01535063      8 0.3372222 0.4051463 0.02062657
-    ## 10 0.01274387      9 0.3218715 0.3809859 0.02028372
-    ## 11 0.01138743     10 0.3091277 0.3645927 0.01977668
-    ## 12 0.01128972     11 0.2977402 0.3606965 0.01966973
-    ## 13 0.01000000     12 0.2864505 0.3479828 0.01948485
+    ## 2  0.11975813      1 0.6831811 0.6900816 0.04062542
+    ## 3  0.08216701      2 0.5634229 0.5703713 0.04027944
+    ## 4  0.05284883      3 0.4812559 0.5339332 0.03037637
+    ## 5  0.04316249      4 0.4284071 0.4708683 0.02913376
+    ## 6  0.02662869      5 0.3852446 0.4220598 0.02339724
+    ## 7  0.02038897      7 0.3319872 0.3822336 0.01772466
+    ## 8  0.01641010      8 0.3115982 0.3493672 0.01754946
+    ## 9  0.01602423      9 0.2951881 0.3318806 0.01733064
+    ## 10 0.01000000     10 0.2791639 0.3176185 0.01639752
 
 ``` r
 opt_index <- which.min(rpart_model$cptable[, "xerror"])
@@ -546,8 +660,8 @@ rmse_values[i] <- sqrt(mean((pred - actual)^2)) #rmse values for cp=c(0.001,0.00
 print(rmse_values)
 ```
 
-    ## [1] 170725.1 181881.0 188922.0 194559.2 197042.5 197042.5 206946.9 208558.5
-    ## [9] 212729.5
+    ## [1] 172974.6 179510.6 182077.6 189410.4 196169.1 201752.6 204598.2 208069.8
+    ## [9] 208069.8
 
 The RMSE value takes its minimum value when cp=0.001. Note that, we have to check if the X-val Relative Error remains small, too. Below, we present the cp plot for small cp values as the verification.
 
@@ -556,7 +670,7 @@ rpart_cp_0001 <- small_cp_models[[1]] # cp=0.001
 plotcp(rpart_cp_0001)
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-25-1.png)
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-33-1.png)
 
 ``` r
 print(rpart_cp_0001$cptable)
@@ -564,63 +678,51 @@ print(rpart_cp_0001$cptable)
 
     ##             CP nsplit rel error    xerror       xstd
     ## 1  0.316818928      0 1.0000000 1.0001658 0.05667259
-    ## 2  0.090371569      1 0.6831811 0.6900816 0.04062542
-    ## 3  0.082167006      2 0.5928095 0.6094447 0.04007452
-    ## 4  0.065763254      3 0.5106425 0.5635206 0.03048560
-    ## 5  0.043162494      4 0.4448792 0.4988173 0.02998279
-    ## 6  0.026602763      5 0.4017167 0.4557058 0.02381580
-    ## 7  0.021040598      6 0.3751140 0.4318101 0.02276377
-    ## 8  0.016851230      7 0.3540734 0.4099209 0.02069885
-    ## 9  0.015350635      8 0.3372222 0.4051463 0.02062657
-    ## 10 0.012743872      9 0.3218715 0.3809859 0.02028372
-    ## 11 0.011387429     10 0.3091277 0.3645927 0.01977668
-    ## 12 0.011289722     11 0.2977402 0.3606965 0.01966973
-    ## 13 0.009063742     12 0.2864505 0.3479828 0.01948485
-    ## 14 0.008005289     13 0.2773868 0.3342903 0.01910621
-    ## 15 0.007961424     14 0.2693815 0.3286634 0.01885249
-    ## 16 0.006935836     15 0.2614200 0.3242126 0.01875147
-    ## 17 0.006284843     16 0.2544842 0.3160440 0.01861648
-    ## 18 0.006136319     17 0.2481994 0.3103014 0.01838055
-    ## 19 0.004333166     18 0.2420630 0.3096073 0.01846854
-    ## 20 0.003947715     19 0.2377299 0.3031026 0.01842838
-    ## 21 0.003947242     20 0.2337822 0.2977754 0.01833952
-    ## 22 0.003682191     21 0.2298349 0.2959053 0.01802364
-    ## 23 0.003112091     22 0.2261527 0.2878333 0.01770359
-    ## 24 0.002992918     23 0.2230406 0.2845839 0.01772007
-    ## 25 0.002984772     24 0.2200477 0.2819392 0.01766548
-    ## 26 0.002733703     25 0.2170630 0.2797149 0.01764008
-    ## 27 0.002707190     26 0.2143292 0.2765941 0.01762206
-    ## 28 0.002382178     27 0.2116221 0.2740662 0.01664378
-    ## 29 0.002305057     28 0.2092399 0.2725542 0.01660443
-    ## 30 0.002189719     29 0.2069348 0.2699420 0.01653764
-    ## 31 0.002180775     30 0.2047451 0.2681864 0.01660146
-    ## 32 0.002139044     31 0.2025643 0.2676312 0.01658886
-    ## 33 0.002118995     32 0.2004253 0.2667579 0.01658294
-    ## 34 0.002102018     33 0.1983063 0.2662429 0.01658197
-    ## 35 0.002045082     34 0.1962043 0.2652729 0.01659076
-    ## 36 0.002014360     35 0.1941592 0.2648502 0.01658911
-    ## 37 0.001975865     36 0.1921448 0.2640696 0.01658116
-    ## 38 0.001971149     37 0.1901690 0.2635694 0.01657377
-    ## 39 0.001962464     39 0.1862267 0.2633890 0.01657240
-    ## 40 0.001852586     40 0.1842642 0.2623926 0.01655848
-    ## 41 0.001809398     41 0.1824116 0.2621905 0.01659568
-    ## 42 0.001764768     42 0.1806022 0.2613503 0.01659037
-    ## 43 0.001650448     43 0.1788375 0.2607206 0.01658807
-    ## 44 0.001567627     44 0.1771870 0.2599160 0.01658334
-    ## 45 0.001465861     45 0.1756194 0.2574642 0.01656368
-    ## 46 0.001417401     46 0.1741535 0.2552411 0.01655225
-    ## 47 0.001387787     47 0.1727361 0.2564246 0.01663505
-    ## 48 0.001183213     48 0.1713483 0.2533984 0.01663152
-    ## 49 0.001175385     49 0.1701651 0.2523286 0.01662149
-    ## 50 0.001168159     50 0.1689897 0.2523307 0.01662152
-    ## 51 0.001166631     51 0.1678216 0.2523307 0.01662152
-    ## 52 0.001119379     52 0.1666549 0.2521377 0.01662202
-    ## 53 0.001099267     53 0.1655356 0.2513671 0.01661469
-    ## 54 0.001084628     54 0.1644363 0.2507542 0.01661223
-    ## 55 0.001047783     55 0.1633517 0.2494015 0.01648625
-    ## 56 0.001042409     56 0.1623039 0.2483480 0.01644481
-    ## 57 0.001001300     57 0.1612615 0.2474115 0.01653363
-    ## 58 0.001000000     58 0.1602602 0.2469561 0.01653206
+    ## 2  0.119758132      1 0.6831811 0.6900816 0.04062542
+    ## 3  0.082167006      2 0.5634229 0.5703713 0.04027944
+    ## 4  0.052848835      3 0.4812559 0.5339332 0.03037637
+    ## 5  0.043162494      4 0.4284071 0.4708683 0.02913376
+    ## 6  0.026628694      5 0.3852446 0.4220598 0.02339724
+    ## 7  0.020388972      7 0.3319872 0.3822336 0.01772466
+    ## 8  0.016410096      8 0.3115982 0.3493672 0.01754946
+    ## 9  0.016024226      9 0.2951881 0.3318806 0.01733064
+    ## 10 0.009719506     10 0.2791639 0.3158539 0.01637058
+    ## 11 0.007510740     11 0.2694444 0.3032235 0.01581010
+    ## 12 0.007231187     12 0.2619337 0.3021959 0.01580910
+    ## 13 0.006895537     13 0.2547025 0.2990206 0.01580090
+    ## 14 0.006340971     14 0.2478070 0.2918059 0.01579570
+    ## 15 0.005773166     15 0.2414660 0.2834448 0.01563505
+    ## 16 0.005631819     16 0.2356928 0.2762926 0.01553289
+    ## 17 0.005303182     17 0.2300610 0.2732020 0.01547893
+    ## 18 0.005094794     18 0.2247578 0.2739784 0.01551404
+    ## 19 0.004433305     19 0.2196630 0.2686693 0.01504971
+    ## 20 0.004333166     20 0.2152297 0.2674352 0.01498714
+    ## 21 0.004314247     21 0.2108966 0.2690030 0.01512344
+    ## 22 0.003932079     22 0.2065823 0.2649323 0.01504716
+    ## 23 0.003358539     23 0.2026502 0.2595672 0.01472451
+    ## 24 0.003318801     24 0.1992917 0.2543504 0.01422536
+    ## 25 0.002997214     25 0.1959729 0.2521422 0.01419418
+    ## 26 0.002402645     26 0.1929757 0.2458176 0.01405187
+    ## 27 0.002382178     27 0.1905730 0.2437603 0.01398625
+    ## 28 0.002049804     28 0.1881908 0.2401804 0.01369221
+    ## 29 0.001846032     29 0.1861410 0.2397908 0.01374196
+    ## 30 0.001769763     30 0.1842950 0.2381558 0.01368065
+    ## 31 0.001648874     31 0.1825252 0.2373698 0.01366638
+    ## 32 0.001515892     32 0.1808764 0.2348040 0.01358423
+    ## 33 0.001362942     33 0.1793605 0.2330222 0.01359590
+    ## 34 0.001354388     34 0.1779975 0.2326789 0.01358343
+    ## 35 0.001340002     35 0.1766432 0.2325094 0.01358502
+    ## 36 0.001329951     36 0.1753032 0.2310113 0.01356901
+    ## 37 0.001262755     37 0.1739732 0.2309890 0.01359134
+    ## 38 0.001231803     38 0.1727104 0.2294592 0.01352520
+    ## 39 0.001219289     39 0.1714786 0.2296899 0.01355550
+    ## 40 0.001175385     40 0.1702594 0.2292397 0.01354997
+    ## 41 0.001146385     41 0.1690840 0.2286708 0.01354032
+    ## 42 0.001126042     42 0.1679376 0.2294673 0.01358001
+    ## 43 0.001091547     43 0.1668115 0.2291943 0.01350868
+    ## 44 0.001088783     44 0.1657200 0.2290920 0.01347336
+    ## 45 0.001037583     45 0.1646312 0.2283578 0.01349078
+    ## 46 0.001000000     46 0.1635936 0.2273886 0.01348361
 
 Since we picked cp=0.001, as seen in the above plot, we expect to see the size of the trees as 20 in the tree plot. As compared to our first tree plot, both tree plots look more complicated since we increased the level of complexity.
 
@@ -628,7 +730,7 @@ Since we picked cp=0.001, as seen in the above plot, we expect to see the size o
 rpart.plot(rpart_cp_0001)
 ```
 
-![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-27-1.png)
+![](LinearRegression_Project_files/figure-markdown_github/unnamed-chunk-35-1.png)
 
 #### <span style="color:green">\* Doing a grid search:\*</span>
 
@@ -690,15 +792,15 @@ rmse_values[i] <- sqrt(mean((pred - actual)^2))
 rmse_values
 ```
 
-    ##  [1] 223162.0 223162.0 223162.0 223162.0 223162.0 223162.0 223162.0
-    ##  [8] 219354.2 219354.2 203614.0 203614.0 203614.0 203614.0 203614.0
-    ## [15] 203614.0 203614.0 199433.3 199433.3 183180.2 183180.2 183180.2
-    ## [22] 184974.5 184974.5 184974.5 184974.5 180362.3 180362.3 175182.6
-    ## [29] 175182.6 175182.6 177058.0 177058.0 177058.0 177226.8 172407.4
-    ## [36] 172407.4 172426.7 172426.7 172426.7 174331.6 174331.6 174331.6
-    ## [43] 174503.1 169606.3 169606.3 170108.2 170108.2 170108.2 172038.9
-    ## [50] 172038.9 172038.9 172212.6 167248.8 167248.8 169080.9 169080.9
-    ## [57] 169080.9 171023.2 171023.2 171023.2 171197.9 166203.8 166203.8
+    ##  [1] 204961.3 204961.3 204961.3 204961.3 204961.3 204961.3 204961.3
+    ##  [8] 200808.7 200808.7 186597.6 186597.6 186597.6 186597.6 186597.6
+    ## [15] 186597.6 186597.6 182026.5 182026.5 179209.5 179209.5 179209.5
+    ## [22] 179104.1 179104.1 179104.1 179319.0 174557.4 174557.4 177151.5
+    ## [29] 177151.5 177151.5 177044.8 177044.8 177044.8 177267.9 172449.7
+    ## [36] 172449.7 176704.9 176704.9 176704.9 176597.9 176597.9 176597.9
+    ## [43] 176821.6 171990.9 171990.9 176704.9 176704.9 176704.9 176597.9
+    ## [50] 176597.9 176597.9 176821.6 171990.9 171990.9 176704.9 176704.9
+    ## [57] 176704.9 176597.9 176597.9 176597.9 176821.6 171990.9 171990.9
 
 ``` r
 best_grid_model <- rpart_grid_models[[which.min(rmse_values)]]
@@ -727,7 +829,7 @@ best_grid_model$control
     ## [1] 0
     ## 
     ## $maxdepth
-    ## [1] 10
+    ## [1] 8
     ## 
     ## $xval
     ## [1] 10
@@ -736,7 +838,7 @@ Several rpart models above have the smallest RMSE value. However, we will pick t
 
 #### <span style="color:green">\* Comparison of the `rpart` models:\*</span>
 
-Although we calculated the RMSE values for the rpart models above, we will present them one more time to summarize and pick the one with the smallest RMSE. Below is the R-code that compares the models on the validation set and calculates the RMSE values.
+Although we calculated the RMSE values for the rpart models above, we will this time calculate the relative error as we did for the linear models, pick the one with the smallest relative error. Below is the R-code that compares the models on the validation set and calculates the RMSE values.
 
 ``` r
 pred1 <- predict(object = rpart_model,newdata = validation_set)
@@ -745,16 +847,15 @@ pred3 <- predict(object = best_grid_model,newdata = validation_set)
 
 
 actual<-validation_set$price
-rmse_1<-sqrt(mean((pred1 - actual)^2))
-rmse_2<-sqrt(mean((pred2 - actual)^2))
-rmse_3<-sqrt(mean((pred3 - actual)^2))
+re_1<-median(abs((pred1 - actual)/actual)) 
+re_2<-median(abs((pred2 - actual)/actual)) 
+re_3<-median(abs((pred3 - actual)/actual)) 
 
-
-rmse_rpart_all<-c(rmse_1,rmse_2,rmse_3)
-print(rmse_rpart_all)
+re_rpart_all<-c(re_1,re_2,re_3)
+print(re_rpart_all)
 ```
 
-    ## [1] 216827.8 170725.1 166203.8
+    ## [1] 0.2052452 0.1405045 0.1405045
 
 <span style="color:blue">*Conclusion*</span>
 --------------------------------------------
@@ -778,12 +879,10 @@ Now we apply our model best\_grid\_model\_full to test\_set.
 ``` r
 pred <- predict(object = best_grid_model_full,newdata = test_set)
 actual<-test_set$price
-rmse<-sqrt(mean((pred - actual)^2))
-re<-sqrt(sum((pred - actual)^2))/sqrt(sum(actual^2)) #relative error
-
-print(c(rmse,re))
+re_mod3<-median(abs((pred - actual)/actual)) 
+print(c(rmse,re_mod3))
 ```
 
-    ## [1] 1.442011e+05 2.258861e-01
+    ## [1] 2.117642e+05 1.417461e-01
 
-The final RMSE value is 144201.1 with the relative error 22.58%.
+The final RMSE value is 2.117642e+05 with the relative error 14.17%.
